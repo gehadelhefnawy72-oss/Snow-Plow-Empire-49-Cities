@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en" translate="no">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<meta name="google" content="notranslate">
+<title>Blizzard Billionaire - Fixed Start</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{width:100%;height:100%;background:#0a1628;color:#fff;font-family:Arial;overflow:hidden;direction:ltr!important;touch-action:manipulation}
+#top{height:60px;background:#101d33;display:flex;align-items:center;gap:6px;padding:0 8px;position:relative;z-index:20}
+#top .b{background:#0008;border:1px solid #fff3;border-radius:10px;padding:5px 8px;font-size:13px;white-space:nowrap}
+#prog{flex:1;height:12px;background:#000;border-radius:10px;overflow:hidden}
+#fill{height:100%;width:0%;background:#ffcc00}
+#upBtn{background:#2aa7ff;color:#fff;border:none;padding:11px 12px;border-radius:10px;font-weight:900;font-size:13px}
+#mid{height:calc(100dvh - 155px);min-height:180px;position:relative;background:#8fb8dd;overflow:hidden}
+canvas{width:100%;height:100%;display:block;touch-action:none}
+#start{position:absolute;inset:0;background:#0a2a52;z-index:999;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;text-align:center;padding:20px;pointer-events:auto;touch-action:manipulation}
+#start button{background:#ffcc00;border:none;padding:16px 40px;border-radius:30px;font-size:22px;font-weight:900;cursor:pointer;pointer-events:auto;touch-action:manipulation;position:relative;z-index:1000;color:#111}
+#panel{position:absolute;inset:0;background:#0a1628;z-index:300;display:none;padding:14px;overflow-y:auto}
+#panel.show{display:block}
+.card{background:#1a2f4d;border:1px solid #2aa7ff;border-radius:12px;padding:12px;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center}
+.card button{background:#ffcc00;border:none;padding:10px 14px;border-radius:10px;font-weight:900}
+#bot{height:95px;background:#101d33;display:flex;gap:8px;padding:8px;align-items:center;position:relative;z-index:20}
+#joy{width:90px;height:78px;background:#000a;border:2px solid #2aa7ff;border-radius:50%;position:relative;flex-shrink:0;touch-action:none}
+#knob{position:absolute;width:36px;height:36px;background:#2aa7ff;border-radius:50%;left:26px;top:20px;pointer-events:none}
+.btn{flex:1;height:58px;border:none;border-radius:14px;font-weight:900;color:#fff;font-size:15px;touch-action:manipulation}
+</style>
+</head>
+<body>
+<div id="top">
+<div class="b">$<b id="money">0</b> | TANK <b id="tank">0</b>/100</div>
+<div class="b">NY <b id="pct">0%</b></div>
+<div id="prog"><div id="fill"></div></div>
+<button id="upBtn" type="button">UPGRADES</button>
+</div>
+<div id="mid">
+<canvas id="cv"></canvas>
+<div id="start">
+<div style="font-size:60px">🚜❄️</div>
+<h1>BLIZZARD<br>BILLIONAIRE</h1>
+<p>Plow Snow • Save Cars • Get Rich</p>
+<button id="playBtn" type="button">▶ PLAY</button>
+</div>
+<div id="panel">
+<h2>UPGRADES - $<span id="upMoney">0</span> <button id="closeBtn" style="float:right;background:#ff2d55;color:#fff;border:none;padding:8px 14px;border-radius:10px;font-weight:900">X CLOSE</button></h2><br>
+<div id="list"></div>
+</div>
+</div>
+<div id="bot">
+<div id="joy"><div id="knob"></div></div>
+<button class="btn" id="nitroBtn" style="background:#0077ff">⚡ NITRO</button>
+<button class="btn" id="sellBtn" style="background:#00c853">💰 SELL</button>
+</div>
+<script>
+'use strict';
+let money=0,tank=0,cleared=0,total=1,started=false,nitro=false,frame=0;
+let lv={blade:0,tank:0,engine:0};
+const defs=[{k:'blade',n:'Blade Width',d:'Bigger plow',b:50},{k:'tank',n:'Snow Tank',d:'+80 capacity',b:60},{k:'engine',n:'Engine',d:'Faster',b:80}];
+const $=id=>document.getElementById(id);
+const cv=$('cv'),ctx=cv.getContext('2d');
+let W=0,H=0,joy={x:0,y:0,on:false},truck={x:200,y:200,a:0},grid=[],cell=32,cols=0,rows=0,cars=[];
+function resize(){
+ const r=$('mid').getBoundingClientRect();
+ W=Math.max(1,Math.floor(r.width)); H=Math.max(1,Math.floor(r.height));
+ const dpr=Math.min(window.devicePixelRatio||1,2);
+ cv.width=Math.floor(W*dpr); cv.height=Math.floor(H*dpr);
+ ctx.setTransform(dpr,0,0,dpr,0,0);
+ init();
+}
+function init(){
+ cols=Math.ceil(W/cell); rows=Math.ceil(H/cell); grid=[]; total=0; cleared=0;
+ for(let y=0;y<rows;y++){const row=[];for(let x=0;x<cols;x++){const v=Math.random()<0.7?1:0;row.push(v);if(v)total++;}grid.push(row);}
+ truck={x:W/2,y:H/2,a:0}; cars=[];
+ for(let i=0;i<5;i++)cars.push({x:60+Math.random()*Math.max(1,W-120),y:50+Math.random()*Math.max(1,H-100),ok:false});
+}
+function startGame(e){
+ if(e){e.preventDefault();e.stopPropagation();}
+ if(started)return;
+ started=true;
+ $('start').style.display='none';
+ resize();
+ draw();
+ frame=requestAnimationFrame(loop);
+}
+function openUp(){
+ $('panel').classList.add('show');$('upMoney').innerText=Math.floor(money);
+ let h='';defs.forEach(d=>{const l=lv[d.k],c=Math.floor(d.b*Math.pow(1.6,l));h+='<div class="card"><div><b>'+d.n+' Lv '+l+'</b><br><small>'+d.d+'</small></div><button type="button" data-up="'+d.k+'" data-cost="'+c+'">$'+c+'</button></div>';});
+ $('list').innerHTML=h;
+}
+function closeUp(){$('panel').classList.remove('show');}
+function buy(k,c){if(money<c)return;money-=c;lv[k]++;openUp();}
+function sell(){if(tank>0){money+=tank*2;tank=0;updateHud();}}
+function updateHud(){
+ $('money').innerText=Math.floor(money);$('tank').innerText=Math.floor(tank);
+ const p=total?Math.floor(cleared/total*100):0;
+ $('pct').innerText=p+'%';$('fill').style.width=p+'%';
+}
+function draw(){
+ ctx.fillStyle='#8fb8dd';ctx.fillRect(0,0,W,H);
+ ctx.fillStyle='#3a3f4a';ctx.fillRect(0,H/2-40,W,80);
+ for(let y=0;y<rows;y++)for(let x=0;x<cols;x++)if(grid[y]&&grid[y][x]){ctx.fillStyle='#fff';ctx.fillRect(x*cell,y*cell,cell-1,cell-1);}
+ ctx.font='28px Arial';ctx.textAlign='center';ctx.fillText('🏭',W-70,70);
+ cars.forEach(c=>{if(!c.ok)ctx.fillText('🚗',c.x,c.y);});
+ ctx.save();ctx.translate(truck.x,truck.y);ctx.rotate(truck.a);ctx.font='32px Arial';ctx.fillText('🚜',0,0);ctx.restore();
+}
+function loop(){
+ if(!started)return;
+ const sp=(2.5+lv.engine*0.6)*(nitro?2:1);
+ if(joy.x||joy.y){truck.a=Math.atan2(joy.y,joy.x);truck.x+=Math.cos(truck.a)*sp;truck.y+=Math.sin(truck.a)*sp;}
+ truck.x=Math.max(20,Math.min(W-20,truck.x));truck.y=Math.max(20,Math.min(H-20,truck.y));
+ const gx=Math.floor((truck.x+Math.cos(truck.a)*28)/cell),gy=Math.floor((truck.y+Math.sin(truck.a)*28)/cell);
+ if(gx>=0&&gx<cols&&gy>=0&&gy<rows&&grid[gy][gx]===1&&tank<100+lv.tank*80){grid[gy][gx]=0;cleared++;tank=Math.min(100+lv.tank*80,tank+2);}
+ if(Math.hypot(truck.x-(W-70),truck.y-60)<70&&tank>0){const t=Math.min(tank,4);tank-=t;money+=t*2;}
+ cars.forEach(c=>{if(!c.ok&&Math.hypot(truck.x-c.x,truck.y-c.y)<40){c.ok=true;money+=50;}});
+ draw();updateHud();frame=requestAnimationFrame(loop);
+}
+$('playBtn').addEventListener('pointerup',startGame);
+$('playBtn').addEventListener('click',startGame);
+$('upBtn').addEventListener('click',openUp);
+$('closeBtn').addEventListener('click',closeUp);
+$('sellBtn').addEventListener('click',sell);
+$('nitroBtn').addEventListener('pointerdown',e=>{e.preventDefault();nitro=true;});
+['pointerup','pointercancel','pointerleave'].forEach(ev=>$('nitroBtn').addEventListener(ev,()=>nitro=false));
+$('list').addEventListener('click',e=>{const b=e.target.closest('button[data-up]');if(b)buy(b.dataset.up,Number(b.dataset.cost));});
+const joyEl=$('joy'),knob=$('knob');
+joyEl.addEventListener('pointerdown',e=>{joy.on=true;joyEl.setPointerCapture(e.pointerId);mv(e);});
+joyEl.addEventListener('pointermove',e=>{if(joy.on)mv(e);});
+function stopJoy(){joy.on=false;joy.x=0;joy.y=0;knob.style.left='26px';knob.style.top='20px';}
+joyEl.addEventListener('pointerup',stopJoy);joyEl.addEventListener('pointercancel',stopJoy);
+function mv(e){const r=joyEl.getBoundingClientRect();let x=(e.clientX-r.left-45)/32,y=(e.clientY-r.top-39)/28;const l=Math.hypot(x,y);if(l>1){x/=l;y/=l;}joy.x=x;joy.y=y;knob.style.left=(26+x*26)+'px';knob.style.top=(20+y*18)+'px';}
+window.addEventListener('resize',()=>{resize();if(started)draw();});
+resize();
+</script>
+</body>
+</html>
